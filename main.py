@@ -3,30 +3,23 @@
 """
 main.py
 
-Bin Packing – zestaw algorytmów z prostym CLI:
+Bin Packing – zestaw algorytmów z prostym CLI, wywołanie:
+  python main.py <algorytm>
 
-  1. full       – pełny przegląd (n≤8)
-  2. hill_det   – Hill‐Climbing deterministyczne
-  3. hill_rand  – Hill‐Climbing losowe
-  4. tabu       – Tabu Search (z opcją powrotu)
-  5. sa         – Simulated Annealing (uniform / normal)
-  6. ga         – Genetic Algorithm (1‐point / uniform, swap / reassign, generations / no_improve, elita)
-  7. gp         – Genetic Programming demo
-  8. es         – Evolutionary Strategy demo
-  9. compare    – porównanie HC det vs SA
+Dostępne algorytmy:
+  full       – pełny przegląd (n≤8)
+  hill_det   – Hill‐Climbing deterministyczne
+  hill_rand  – Hill‐Climbing losowe
+  tabu       – Tabu Search (bez dodatkowych opcji)
+  sa         – Simulated Annealing (ustawienia w kodzie)
+  ga         – Genetic Algorithm (parametry w kodzie)
+  gp         – Genetic Programming demo
+  es         – Evolutionary Strategy demo
+  compare    – porównanie HC det vs SA
 
-Przykładowe uruchomienia:
-
-  python main.py full    --items 5 7 6 2 4 3 --capacity 10
-  python main.py hill_det  -t 500  --items 5 7 6 2 4 3
-  python main.py hill_rand --iters 500
-  python main.py tabu      --tabu-size 5 -t 200 --allow-return
-  python main.py sa        --neighbor-dist normal -t 500
-  python main.py ga       --pop 30 --gens 100 --crossover uniform \
-                         --mutation reassign --termination noimprove --no_improve 20 --elite
-  python main.py gp       --gens 20 --pop 10
-  python main.py es
-  python main.py compare  -t 200 --runs 5
+Domyślne dane:
+  items    = [5,7,6,2,4,3,10,1,2,3,4]
+  capacity = 10
 """
 
 import argparse, random, copy, itertools, math
@@ -34,12 +27,14 @@ from collections import deque
 import matplotlib.pyplot as plt
 
 STATIC_ITEMS = [5, 7, 6, 2, 4, 3, 10, 1, 2, 3, 4]
+DEFAULT_CAPACITY = 10
 
 # 1. FUNKCJA CELU
 def objective(sol, items, capacity):
     used = 0
     for b in sol:
-        if not b: continue
+        if not b:
+            continue
         total = sum(items[i] for i in b)
         if total > capacity:
             return len(items) + 1
@@ -67,9 +62,10 @@ def get_neighbors(sol, items, capacity):
     neigh = []
     for a in range(len(sol)):
         for i in sol[a]:
-            # do istniejących
+            # do istniejących binów
             for b in range(len(sol)):
-                if b == a: continue
+                if b == a:
+                    continue
                 if sum(items[j] for j in sol[b]) + items[i] <= capacity:
                     new = copy.deepcopy(sol)
                     new[a].remove(i)
@@ -77,7 +73,7 @@ def get_neighbors(sol, items, capacity):
                     if not new[a]:
                         new.pop(a)
                     neigh.append(new)
-            # do nowego
+            # do nowego binu
             if items[i] <= capacity:
                 new = copy.deepcopy(sol)
                 new[a].remove(i)
@@ -92,7 +88,7 @@ def full_enumeration(items, capacity, max_n=8):
     if len(items) > max_n:
         return None, None
     n = len(items)
-    best_count = n+1
+    best_count = n + 1
     best_sol = None
     for assign in itertools.product(range(n), repeat=n):
         bins = {}
@@ -118,7 +114,8 @@ def hill_climbing_det(items, capacity, max_iters=1000):
     best, best_obj = cur, cur_obj
     for _ in range(max_iters):
         nbrs = get_neighbors(cur, items, capacity)
-        if not nbrs: break
+        if not nbrs:
+            break
         objs = [objective(n, items, capacity) for n in nbrs]
         m = min(objs)
         if m < cur_obj:
@@ -137,7 +134,8 @@ def hill_climbing_rand(items, capacity, max_iters=1000):
     best, best_obj = cur, cur_obj
     for _ in range(max_iters):
         nbrs = get_neighbors(cur, items, capacity)
-        if not nbrs: break
+        if not nbrs:
+            break
         cand = random.choice(nbrs)
         co = objective(cand, items, capacity)
         if co < cur_obj:
@@ -147,7 +145,10 @@ def hill_climbing_rand(items, capacity, max_iters=1000):
     return best, best_obj
 
 # 7. TABU SEARCH
-def tabu_search(items, capacity, tabu_size=10, max_iters=1000, allow_return=False):
+def tabu_search(items, capacity,
+                tabu_size=10,
+                max_iters=1000,
+                allow_return=False):
     def sol_key(sol):
         sb = sorted([sorted(b) for b in sol])
         return "|".join(",".join(map(str, b)) for b in sb)
@@ -196,7 +197,8 @@ def simulated_annealing(items, capacity,
     T, it = T0, 0
     while T > stop_T and it < max_iters:
         nbrs = get_neighbors(cur, items, capacity)
-        if not nbrs: break
+        if not nbrs:
+            break
         if neighbor_dist == 'normal':
             sigma = max(1, len(nbrs)//3)
             idx = int(abs(random.gauss(0, sigma))) % len(nbrs)
@@ -406,7 +408,6 @@ def run_es_demo():
 def compare_methods(items, capacity, runs=5, iters=200):
     hc_hist, sa_hist = [], []
     for _ in range(runs):
-        # HC det
         _, best = hill_climbing_det(items, capacity, iters)
         hist = [best]
         cur = random_solution(items, capacity)
@@ -420,7 +421,6 @@ def compare_methods(items, capacity, runs=5, iters=200):
             hist.append(best)
         hc_hist.append(hist)
 
-        # SA
         cur = random_solution(items, capacity)
         best = objective(cur, items, capacity)
         hist2 = [best]
@@ -438,126 +438,82 @@ def compare_methods(items, capacity, runs=5, iters=200):
     avg_hc = [sum(col)/runs for col in zip(*[h + [h[-1]]*(iters+1-len(h)) for h in hc_hist])]
     avg_sa = [sum(col)/runs for col in zip(*[h + [h[-1]]*(iters+1-len(h)) for h in sa_hist])]
 
+    print("\nIter | HC_det | SA")
+    print("-------------------")
+    for i, (h, s) in enumerate(zip(avg_hc, avg_sa)):
+        print(f"{i:4d} | {h:6.2f} | {s:4.2f}")
+    print()
+
     plt.plot(avg_hc, label='HC det')
     plt.plot(avg_sa, label='SA')
-    plt.xlabel('Iter'); plt.ylabel('Avg best bins')
-    plt.legend(); plt.title('HC vs SA')
-    plt.savefig('convergence.png')
-    print("Saved convergence.png")
+    plt.xlabel('Iteracja')
+    plt.ylabel('Średnia liczba koszy')
+    plt.title('Porównanie HC det vs SA')
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
 
 # 13. CLI
 def parse_args():
     p = argparse.ArgumentParser(description="Bin Packing CLI")
     sub = p.add_subparsers(dest="alg", required=True)
 
-    base = argparse.ArgumentParser(add_help=False)
-    base.add_argument("-c","--capacity", type=int, default=10)
-    base.add_argument("-i","--items", type=int, nargs="+")
-
-    def add(name, **kw):
-        return sub.add_parser(name, parents=[base], **kw)
-
-    f = add("full", help="full enumeration")
-    f.add_argument("--max-n", type=int, default=8)
-
-    hd = add("hill_det", help="hill climbing det")
-    hd.add_argument("-t","--iters", type=int, default=1000)
-
-    hr = add("hill_rand", help="hill climbing rand")
-    hr.add_argument("-t","--iters", type=int, default=1000)
-
-    ts = add("tabu", help="tabu search")
-    ts.add_argument("--tabu-size", type=int, default=10)
-    ts.add_argument("-t","--iters", type=int, default=1000)
-    ts.add_argument("--allow-return", action="store_true")
-
-    sa = add("sa", help="simulated annealing")
-    sa.add_argument("--T0", type=float, default=10.0)
-    sa.add_argument("--alpha", type=float, default=0.95)
-    sa.add_argument("--stop-T", type=float, default=0.1)
-    sa.add_argument("-t","--iters", type=int, default=1000)
-    sa.add_argument("--neighbor-dist", choices=["uniform","normal"], default="uniform")
-
-    ga = add("ga", help="genetic algorithm")
-    ga.add_argument("--pop", type=int, default=50)
-    ga.add_argument("--gens", type=int, default=100)
-    ga.add_argument("--crossover", choices=["one","uniform"], default="one")
-    ga.add_argument("--mutation", choices=["swap","reassign"], default="swap")
-    ga.add_argument("--termination", choices=["gen","noimprove"], default="gen")
-    ga.add_argument("--no_improve", type=int, default=20)
-    ga.add_argument("--elite", action="store_true")
-
-    gp = add("gp", help="genetic programming demo")
-    gp.add_argument("--gens", type=int, default=30)
-    gp.add_argument("--pop", type=int, default=20)
-
-    add("es", help="evolutionary strategy demo")
-
-    cmp = add("compare", help="compare HC vs SA")
-    cmp.add_argument("--runs", type=int, default=5)
-    cmp.add_argument("-t","--iters", type=int, default=200)
+    sub.add_parser("full",      help="full enumeration")
+    sub.add_parser("hill_det",  help="hill climbing det")
+    sub.add_parser("hill_rand", help="hill climbing rand")
+    sub.add_parser("tabu",      help="tabu search")
+    sub.add_parser("sa",        help="simulated annealing")
+    sub.add_parser("ga",        help="genetic algorithm")
+    sub.add_parser("gp",        help="genetic programming demo")
+    sub.add_parser("es",        help="evolutionary strategy demo")
+    sub.add_parser("compare",   help="compare HC det vs SA")
 
     return p.parse_args()
 
 def main():
-    args = parse_args()
-    items = args.items if args.items else STATIC_ITEMS
-    cap   = args.capacity
+    args   = parse_args()
+    items  = STATIC_ITEMS
+    cap    = DEFAULT_CAPACITY
 
     def show(sol, cnt):
-        # przetłumacz indeksy na wagi
         bins = [[items[i] for i in b] for b in sol]
-        print(f"{args.alg} bins: {cnt}, solution: {bins}")
+        print(f"{args.alg}: użyto {cnt} koszy, rozwiązanie = {bins}")
 
     if args.alg == "full":
-        sol, cnt = full_enumeration(items, cap, args.max_n)
+        sol, cnt = full_enumeration(items, cap)
         show(sol, cnt)
 
     elif args.alg == "hill_det":
-        sol, cnt = hill_climbing_det(items, cap, args.iters)
+        sol, cnt = hill_climbing_det(items, cap)
         show(sol, cnt)
 
     elif args.alg == "hill_rand":
-        sol, cnt = hill_climbing_rand(items, cap, args.iters)
+        sol, cnt = hill_climbing_rand(items, cap)
         show(sol, cnt)
 
     elif args.alg == "tabu":
-        sol, cnt = tabu_search(items, cap,
-                               tabu_size=args.tabu_size,
-                               max_iters=args.iters,
-                               allow_return=args.allow_return)
+        sol, cnt = tabu_search(items, cap)
         show(sol, cnt)
 
     elif args.alg == "sa":
-        sol, cnt = simulated_annealing(items, cap,
-                                       T0=args.T0, alpha=args.alpha,
-                                       stop_T=args.stop_T,
-                                       max_iters=args.iters,
-                                       neighbor_dist=args.neighbor_dist)
+        sol, cnt = simulated_annealing(items, cap)
         show(sol, cnt)
 
     elif args.alg == "ga":
-        sol, cnt = genetic_algorithm(items, cap,
-                                     pop_size=args.pop,
-                                     gens=args.gens,
-                                     crossover_method=args.crossover,
-                                     mutation_method=args.mutation,
-                                     termination=args.termination,
-                                     no_improve_limit=args.no_improve,
-                                     elite=args.elite)
+        sol, cnt = genetic_algorithm(items, cap)
         show(sol, cnt)
 
     elif args.alg == "gp":
-        gp_demo(args.gens, args.pop)
+        gp_demo()
 
     elif args.alg == "es":
         run_es_demo()
 
     elif args.alg == "compare":
-        compare_methods(items, cap, runs=args.runs, iters=args.iters)
+        compare_methods(items, cap)
 
     else:
         print("Nieznany alg")
 
-if __name__=="__main__":
+if __name__ == "__main__":
     main()
