@@ -33,13 +33,13 @@ import argparse, random, copy, itertools, math
 from collections import deque
 import matplotlib.pyplot as plt
 
-STATIC_ITEMS = [5, 7, 6, 2, 4, 3]
+STATIC_ITEMS = [5, 7, 6, 2, 4, 3, 10, 1, 2, 3, 4]
 
 # 1. FUNKCJA CELU
 def objective(sol, items, capacity):
     used = 0
-    for b in sol:
-        if not b: continue
+    for b in sol: #przechodzimy przez kosze
+        if not b: continue # pomijamy jesli pusty
         s = sum(items[i] for i in b)
         if s > capacity:
             return len(items) + 1
@@ -50,12 +50,9 @@ def objective(sol, items, capacity):
 def random_solution(items, capacity):
     idx = list(range(len(items)))
     random.shuffle(idx)
-
     bins = []
-
     for i in idx:
         placed = False
-
         for k in range(len(bins)):
             candidate = copy.deepcopy(bins)
             if sum(items[j] for j in candidate[k]) + items[i] <= capacity:
@@ -154,7 +151,7 @@ def hill_climbing_rand(items, capacity, max_iters=1000):
     return best, best_obj
 
 # 7. TABU SEARCH
-def tabu_search(items, capacity, tabu_size=10, max_iters=1000, allow_return=False):
+def tabu_search(items, capacity, tabu_size=10, max_iters=1000, allow_return=True):
     def sol_key(sol):
         sb = sorted([sorted(b) for b in sol])
         return "|".join(",".join(map(str,b)) for b in sb)
@@ -192,12 +189,12 @@ def tabu_search(items, capacity, tabu_size=10, max_iters=1000, allow_return=Fals
 # 8. SIMULATED ANNEALING
 def simulated_annealing(items, capacity,
                         T0=10.0, alpha=0.95, stop_T=0.1,
-                        max_iters=1000, neighbor_dist='uniform'):
+                        max_iters=1000, neighbor_dist='normal'):
     cur = random_solution(items, capacity)
     cur_obj = objective(cur, items, capacity)
     best, best_obj = cur, cur_obj
     T, it = T0, 0
-    while T > stop_T and it < max_iters:
+    while T > stop_T or it < max_iters:
         nbrs = get_neighbors(cur, items, capacity)
         if not nbrs: break
         if neighbor_dist=='normal':
