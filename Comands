@@ -1,0 +1,62 @@
+# 1. Pełny przegląd (n ≤ 8)
+python main.py full \
+  --items 5 7 6 2 4 3 \
+  --capacity 10 \
+  --max-n 8
+
+# 2. Hill-Climbing deterministyczne
+python main.py hill_det \
+  --items 5 7 6 2 4 3 \
+  --capacity 10 \
+  --iters 500
+
+# 3. Hill-Climbing losowe
+python main.py hill_rand \
+  --items 5 7 6 2 4 3 \
+  --capacity 10 \
+  --iters 500
+
+# 4. Tabu Search (z powrotem do ostatniego nie-tabu)
+python main.py tabu \
+  --items 5 7 6 2 4 3 \
+  --capacity 10 \
+  --tabu-size 5 \
+  --iters 200 \
+  --allow-return
+
+# 5. Simulated Annealing (wybór sąsiada normalnie rozłożonego)
+python main.py sa \
+  --items 5 7 6 2 4 3 \
+  --capacity 10 \
+  --neighbor-dist normal \
+  --T0 10.0 \
+  --alpha 0.95 \
+  --stop-T 0.1 \
+  --iters 500
+
+# 6. Genetic Algorithm (uniform crossover + reassign mutation + elita)
+python main.py ga \
+  --items 5 7 6 2 4 3 \
+  --capacity 10 \
+  --pop 30 \
+  --gens 100 \
+  --crossover uniform \
+  --mutation reassign \
+  --termination noimprove \
+  --no_improve 20 \
+  --elite
+
+# 7. Genetic Programming demo
+python main.py gp \
+  --gens 20 \
+  --pop 10
+
+# 8. Evolutionary Strategy demo
+python main.py es
+
+# 9. Porównanie HC det vs SA
+python main.py compare \
+  --items 5 7 6 2 4 3 \
+  --capacity 10 \
+  --runs 5 \
+  --iters 200
