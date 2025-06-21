@@ -503,79 +503,66 @@ def compare_methods(items, capacity, runs=5, iters=200):
 # 13. CLI
 def parse_args():
     p = argparse.ArgumentParser(description="Bin Packing CLI")
-    p.add_argument("-i", "--items", type=int, nargs="+", default=None,
-                   help="list of item weights (default static)")
-    p.add_argument("-c", "--capacity", type=int, default=DEFAULT_CAPACITY,
-                   help="capacity of each bin")
     sub = p.add_subparsers(dest="alg", required=True)
 
-    full = sub.add_parser("full", help="full enumeration")
-    full.add_argument("--max-n", type=int, default=8,
-                      help="limit for full enumeration (n<=max_n)")
+    base = argparse.ArgumentParser(add_help=False)
+    base.add_argument("-c","--capacity", type=int, default=10)
+    base.add_argument("-i","--items", type=int, nargs="+")
 
-    hd = sub.add_parser("hill_det", help="hill climbing deterministic")
-    hd.add_argument("-t", "--iters", type=int, default=1000,
-                    help="max iterations")
+    def add(name, **kw):
+        return sub.add_parser(name, parents=[base], **kw)
 
-    hr = sub.add_parser("hill_rand", help="hill climbing random")
-    hr.add_argument("-t", "--iters", type=int, default=1000,
-                    help="max iterations")
+    f = add("full", help="full enumeration")
+    f.add_argument("--max-n", type=int, default=8)
 
-    ts = sub.add_parser("tabu", help="tabu search")
-    ts.add_argument("--tabu-size", type=int, default=10,
-                    help="tabu list size")
-    ts.add_argument("-t", "--iters", type=int, default=1000,
-                    help="max iterations")
-    ts.add_argument("--allow-return", action="store_true",
-                    help="allow return to last valid when stuck")
+    hd = add("hill_det", help="hill climbing det")
+    hd.add_argument("-t","--iters", type=int, default=1000)
 
-    sa = sub.add_parser("sa", help="simulated annealing")
-    sa.add_argument("-t", "--iters", type=int, default=1000,
-                    help="max iterations")
-    sa.add_argument("--T0", type=float, default=10.0,
-                    help="initial temperature")
-    sa.add_argument("--alpha", type=float, default=0.95,
-                    help="cooling rate")
-    sa.add_argument("--stop-T", type=float, default=0.1,
-                    help="stop temperature")
-    sa.add_argument("--neighbor-dist", choices=["uniform", "normal"], default="uniform",
-                    help="neighbor selection distribution")
+    hr = add("hill_rand", help="hill climbing rand")
+    hr.add_argument("-t","--iters", type=int, default=1000)
 
-    ga = sub.add_parser("ga", help="genetic algorithm")
-    ga.add_argument("--pop", type=int, default=50, help="population size")
-    ga.add_argument("--gens", type=int, default=100, help="generations")
-    ga.add_argument("--crossover", choices=["one", "uniform"], default="one",
-                    help="crossover method")
-    ga.add_argument("--mutation", choices=["swap", "reassign"], default="swap",
-                    help="mutation method")
-    ga.add_argument("--termination", choices=["gen", "noimprove"], default="gen",
-                    help="termination condition")
-    ga.add_argument("--no_improve", type=int, default=20,
-                    help="no-improve limit")
-    ga.add_argument("--elite", action="store_true",
-                    help="use elitism")
+    ts = add("tabu", help="tabu search")
+    ts.add_argument("--tabu-size", type=int, default=10)
+    ts.add_argument("-t","--iters", type=int, default=1000)
+    ts.add_argument("--allow-return", action="store_true")
 
-    gp = sub.add_parser("gp", help="genetic programming demo")
-    gp.add_argument("--gens", type=int, default=30, help="generations")
-    gp.add_argument("--pop", type=int, default=20, help="population size")
+    sa = add("sa", help="simulated annealing")
+    sa.add_argument("--T0", type=float, default=10.0)
+    sa.add_argument("--alpha", type=float, default=0.95)
+    sa.add_argument("--stop-T", type=float, default=0.1)
+    sa.add_argument("-t","--iters", type=int, default=1000)
+    sa.add_argument("--neighbor-dist", choices=["uniform","normal"], default="uniform")
 
-    sub.add_parser("es", help="evolutionary strategy demo")
+    ga = add("ga", help="genetic algorithm")
+    ga.add_argument("--pop", type=int, default=50)
+    ga.add_argument("--gens", type=int, default=100)
+    ga.add_argument("--crossover", choices=["one","uniform"], default="one")
+    ga.add_argument("--mutation", choices=["swap","reassign"], default="swap")
+    ga.add_argument("--termination", choices=["gen","noimprove"], default="gen")
+    ga.add_argument("--no_improve", type=int, default=20)
+    ga.add_argument("--elite", action="store_true")
 
-    cmp = sub.add_parser("compare", help="compare HC det vs SA")
-    cmp.add_argument("--runs", type=int, default=5, help="repetitions")
-    cmp.add_argument("-t", "--iters", type=int, default=200, help="iterations")
+    gp = add("gp", help="genetic programming demo")
+    gp.add_argument("--gens", type=int, default=30)
+    gp.add_argument("--pop", type=int, default=20)
+
+    add("es", help="evolutionary strategy demo")
+
+    cmp = add("compare", help="compare HC vs SA")
+    cmp.add_argument("--runs", type=int, default=5)
+    cmp.add_argument("-t","--iters", type=int, default=200)
 
     return p.parse_args()
-
 
 def main():
     args = parse_args()
     items = args.items if args.items else STATIC_ITEMS
-    cap = args.capacity
+    cap   = args.capacity
 
     def show(sol, cnt):
+        # przetłumacz indeksy na wagi
         bins = [[items[i] for i in b] for b in sol]
-        print(f"{args.alg}: użyto {cnt} koszy, rozwiązanie = {bins}")
+        print(f"{args.alg} bins: {cnt}, solution: {bins}")
 
     if args.alg == "full":
         sol, cnt = full_enumeration(items, cap, args.max_n)
@@ -627,6 +614,5 @@ def main():
     else:
         print("Nieznany alg")
 
-
-if __name__ == "__main__":
+if __name__=="__main__":
     main()
