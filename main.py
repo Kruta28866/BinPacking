@@ -39,8 +39,9 @@ import argparse, random, copy, itertools, math
 from collections import deque
 import matplotlib.pyplot as plt
 
-STATIC_ITEMS      = [5, 7, 6, 2, 4, 3, 10, 1, 2, 3, 4]
-DEFAULT_CAPACITY  = 10
+STATIC_ITEMS = [5, 7, 6, 2, 4, 3, 10, 1, 2, 3, 4]
+DEFAULT_CAPACITY = 10
+
 
 # 1. FUNKCJA CELU
 def objective(sol, items, capacity):
@@ -53,6 +54,7 @@ def objective(sol, items, capacity):
             return len(items) + 1
         used += 1
     return used
+
 
 # 2. LOSOWE ROZWIĄZANIE (First‐Fit)
 def random_solution(items, capacity):
@@ -69,6 +71,7 @@ def random_solution(items, capacity):
         if not placed:
             bins.append([i])
     return bins
+
 
 # 3. SĄSIEDZTWO: przeniesienie jednego przedmiotu
 def get_neighbors(sol, items, capacity):
@@ -96,15 +99,16 @@ def get_neighbors(sol, items, capacity):
                 neigh.append(new)
     return neigh
 
+
 # 4. PEŁNY PRZEGLĄD
 def full_enumeration(items, capacity, max_n=8):
     if len(items) > max_n:
         return None, None
     n = len(items)
     best_count = n + 1
-    best_sol   = None
+    best_sol = None
     for assign in itertools.product(range(n), repeat=n):
-        bins  = {}
+        bins = {}
         valid = True
         for i, b in enumerate(assign):
             bins.setdefault(b, []).append(i)
@@ -117,12 +121,13 @@ def full_enumeration(items, capacity, max_n=8):
         used = len(bins)
         if used < best_count:
             best_count = used
-            best_sol   = [bins[k] for k in sorted(bins)]
+            best_sol = [bins[k] for k in sorted(bins)]
     return best_sol, best_count
+
 
 # 5. HILL‐CLIMBING deterministyczne
 def hill_climbing_det(items, capacity, max_iters=1000):
-    cur     = random_solution(items, capacity)
+    cur = random_solution(items, capacity)
     cur_obj = objective(cur, items, capacity)
     best, best_obj = cur, cur_obj
     for _ in range(max_iters):
@@ -130,7 +135,7 @@ def hill_climbing_det(items, capacity, max_iters=1000):
         if not nbrs:
             break
         objs = [objective(n, items, capacity) for n in nbrs]
-        m    = min(objs)
+        m = min(objs)
         if m < cur_obj:
             i = objs.index(m)
             cur, cur_obj = nbrs[i], m
@@ -140,9 +145,10 @@ def hill_climbing_det(items, capacity, max_iters=1000):
             break
     return best, best_obj
 
+
 # 6. HILL‐CLIMBING losowe
 def hill_climbing_rand(items, capacity, max_iters=1000):
-    cur     = random_solution(items, capacity)
+    cur = random_solution(items, capacity)
     cur_obj = objective(cur, items, capacity)
     best, best_obj = cur, cur_obj
     for _ in range(max_iters):
@@ -150,12 +156,13 @@ def hill_climbing_rand(items, capacity, max_iters=1000):
         if not nbrs:
             break
         cand = random.choice(nbrs)
-        co   = objective(cand, items, capacity)
+        co = objective(cand, items, capacity)
         if co < cur_obj:
             cur, cur_obj = cand, co
             if co < best_obj:
                 best, best_obj = cand, co
     return best, best_obj
+
 
 # 7. TABU SEARCH
 def tabu_search(items, capacity,
@@ -166,16 +173,16 @@ def tabu_search(items, capacity,
         sb = sorted([sorted(b) for b in sol])
         return "|".join(",".join(map(str, b)) for b in sb)
 
-    cur     = random_solution(items, capacity)
+    cur = random_solution(items, capacity)
     cur_obj = objective(cur, items, capacity)
     best, best_obj = cur, cur_obj
 
-    tabu     = deque([sol_key(cur)], maxlen=tabu_size)
+    tabu = deque([sol_key(cur)], maxlen=tabu_size)
     tabu_set = set(tabu)
     last_valid = cur
 
     for _ in range(max_iters):
-        nbrs     = get_neighbors(cur, items, capacity)
+        nbrs = get_neighbors(cur, items, capacity)
         next_sol = None
         for n in nbrs:
             k = sol_key(n)
@@ -184,12 +191,12 @@ def tabu_search(items, capacity,
                 break
         if next_sol is None:
             if allow_return:
-                cur     = last_valid
+                cur = last_valid
                 cur_obj = objective(cur, items, capacity)
                 continue
             else:
                 break
-        cur     = next_sol
+        cur = next_sol
         cur_obj = objective(cur, items, capacity)
         if cur_obj < best_obj:
             best, best_obj = cur, cur_obj
@@ -200,11 +207,12 @@ def tabu_search(items, capacity,
 
     return best, best_obj
 
+
 # 8. SIMULATED ANNEALING
 def simulated_annealing(items, capacity,
                         T0=10.0, alpha=0.95, stop_T=0.1,
                         max_iters=1000, neighbor_dist='uniform'):
-    cur     = random_solution(items, capacity)
+    cur = random_solution(items, capacity)
     cur_obj = objective(cur, items, capacity)
     best, best_obj = cur, cur_obj
     T, it = T0, 0
@@ -213,9 +221,9 @@ def simulated_annealing(items, capacity,
         if not nbrs:
             break
         if neighbor_dist == 'normal':
-            sigma = max(1, len(nbrs)//3)
-            idx   = int(abs(random.gauss(0, sigma))) % len(nbrs)
-            cand  = nbrs[idx]
+            sigma = max(1, len(nbrs) // 3)
+            idx = int(abs(random.gauss(0, sigma))) % len(nbrs)
+            cand = nbrs[idx]
         else:
             cand = random.choice(nbrs)
         co = objective(cand, items, capacity)
@@ -227,18 +235,20 @@ def simulated_annealing(items, capacity,
         it += 1
     return best, best_obj
 
+
 # 9. GENETIC ALGORITHM
 def encode(sol, n):
-    chrom = [0]*n
+    chrom = [0] * n
     for bi, b in enumerate(sol):
         for i in b:
             chrom[i] = bi
     return chrom
 
+
 def decode(chrom, items, capacity):
     paired = list(enumerate(chrom))
     paired.sort(key=lambda x: x[1])
-    bins   = []
+    bins = []
     for i, _ in paired:
         placed = False
         for b in bins:
@@ -250,37 +260,45 @@ def decode(chrom, items, capacity):
             bins.append([i])
     return bins
 
+
 def fitness(chrom, items, capacity):
     return objective(decode(chrom, items, capacity), items, capacity)
+
 
 def select_parents(pop, fits):
     def tourney():
         i, j = random.sample(range(len(pop)), 2)
         return pop[i] if fits[i] < fits[j] else pop[j]
+
     return tourney(), tourney()
 
+
 def crossover_one(ch1, ch2):
-    p = random.randint(1, len(ch1)-1)
+    p = random.randint(1, len(ch1) - 1)
     return ch1[:p] + ch2[p:]
 
+
 def crossover_uniform(ch1, ch2):
-    return [ch1[i] if random.random()<0.5 else ch2[i] for i in range(len(ch1))]
+    return [ch1[i] if random.random() < 0.5 else ch2[i] for i in range(len(ch1))]
+
 
 def mutate_swap(ch):
     i, j = random.sample(range(len(ch)), 2)
     ch[i], ch[j] = ch[j], ch[i]
 
+
 def mutate_reassign(ch, max_bins):
     i = random.randrange(len(ch))
     ch[i] = random.randrange(max_bins)
+
 
 def genetic_algorithm(items, capacity,
                       pop_size=50, gens=100,
                       crossover_method='one', mutation_method='swap',
                       termination='gen', no_improve_limit=20,
                       elite=False):
-    n    = len(items)
-    pop  = [encode(random_solution(items, capacity), n) for _ in range(pop_size)]
+    n = len(items)
+    pop = [encode(random_solution(items, capacity), n) for _ in range(pop_size)]
     fits = [fitness(c, items, capacity) for c in pop]
     best_idx, best_val = min(range(pop_size), key=lambda i: fits[i]), min(fits)
     best_ch = pop[best_idx].copy()
@@ -291,53 +309,60 @@ def genetic_algorithm(items, capacity,
         new = [best_ch.copy()] if elite else []
         while len(new) < pop_size:
             p1, p2 = select_parents(pop, fits)
-            ch      = crossover_one(p1, p2) if crossover_method=='one' else crossover_uniform(p1, p2)
-            if mutation_method=='swap' and random.random()<0.1:
+            ch = crossover_one(p1, p2) if crossover_method == 'one' else crossover_uniform(p1, p2)
+            if mutation_method == 'swap' and random.random() < 0.1:
                 mutate_swap(ch)
-            if mutation_method=='reassign' and random.random()<0.1:
+            if mutation_method == 'reassign' and random.random() < 0.1:
                 mutate_reassign(ch, pop_size)
             new.append(ch)
-        pop  = new
+        pop = new
         fits = [fitness(c, items, capacity) for c in pop]
         idx, val = min(range(pop_size), key=lambda i: fits[i]), min(fits)
         if val < best_val:
             best_val, best_ch, no_imp = val, pop[idx].copy(), 0
         else:
             no_imp += 1
-        if (termination=='gen' and gen>=gens) or (termination=='noimprove' and no_imp>=no_improve_limit):
+        if (termination == 'gen' and gen >= gens) or (termination == 'noimprove' and no_imp >= no_improve_limit):
             break
 
     return decode(best_ch, items, capacity), best_val
+
 
 # 10. GP DEMO
 class GPNode:
     def __init__(self, val, left=None, right=None):
         self.val, self.left, self.right = val, left, right
+
     def eval(self, x):
         if not self.left:
-            return x if self.val=='x' else float(self.val)
+            return x if self.val == 'x' else float(self.val)
         a, b = self.left.eval(x), self.right.eval(x)
-        return {'+':a+b,'-':a-b,'*':a*b,'/':a/b if abs(b)>1e-6 else 1}[self.val]
+        return {'+': a + b, '-': a - b, '*': a * b, '/': a / b if abs(b) > 1e-6 else 1}[self.val]
+
     def clone(self):
         return GPNode(self.val,
                       self.left.clone() if self.left else None,
                       self.right.clone() if self.right else None)
+
     def collect(self):
         nodes = [self]
         if self.left:  nodes += self.left.collect()
         if self.right: nodes += self.right.collect()
         return nodes
+
     def __str__(self):
         if not self.left: return str(self.val)
         return f"({self.val} {self.left} {self.right})"
 
+
 def gen_gp_tree(depth, funcs, terms):
-    if depth==0 or (depth>1 and random.random()<0.3):
+    if depth == 0 or (depth > 1 and random.random() < 0.3):
         return GPNode(random.choice(terms))
     f = random.choice(funcs)
     return GPNode(f,
-                  gen_gp_tree(depth-1, funcs, terms),
-                  gen_gp_tree(depth-1, funcs, terms))
+                  gen_gp_tree(depth - 1, funcs, terms),
+                  gen_gp_tree(depth - 1, funcs, terms))
+
 
 def gp_crossover(p1, p2):
     c1, c2 = p1.clone(), p2.clone()
@@ -346,70 +371,83 @@ def gp_crossover(p1, p2):
         n2.val, n2.left, n2.right, n1.val, n1.left, n1.right
     return c1
 
+
 def gp_mutation(tree, funcs, terms, depth):
-    m      = tree.clone()
+    m = tree.clone()
     target = random.choice(m.collect())
-    new    = gen_gp_tree(depth, funcs, terms)
+    new = gen_gp_tree(depth, funcs, terms)
     target.val, target.left, target.right = new.val, new.left, new.right
     return m
 
+
 def gp_demo(gens=30, pop_size=20):
-    funcs, terms = ['+','-','*','/'], ['x','1','2','3','5']
+    funcs, terms = ['+', '-', '*', '/'], ['x', '1', '2', '3', '5']
     pop = [gen_gp_tree(3, funcs, terms) for _ in range(pop_size)]
-    xs  = [i/10 for i in range(-10,11)]
-    def fit(t): return sum((t.eval(x)-math.sin(x))**2 for x in xs)
-    fits     = [fit(t) for t in pop]
+    xs = [i / 10 for i in range(-10, 11)]
+
+    def fit(t):
+        return sum((t.eval(x) - math.sin(x)) ** 2 for x in xs)
+
+    fits = [fit(t) for t in pop]
     best, be = pop[fits.index(min(fits))], min(fits)
     for _ in range(gens):
         new = [best.clone()]
         while len(new) < pop_size:
-            if random.random()<0.8:
-                i, j = random.sample(range(pop_size),2)
+            if random.random() < 0.8:
+                i, j = random.sample(range(pop_size), 2)
                 child = gp_crossover(pop[i], pop[j])
             else:
                 child = pop[random.randrange(pop_size)].clone()
-            if random.random()<0.1:
+            if random.random() < 0.1:
                 child = gp_mutation(child, funcs, terms, 3)
             new.append(child)
-        pop  = new
+        pop = new
         fits = [fit(t) for t in pop]
-        ce   = min(fits)
+        ce = min(fits)
         if ce < be:
             be, best = ce, pop[fits.index(ce)]
     print("GP best expr:", best)
     print("Error sin(x):", be)
 
+
 # 11. EVOLUTIONARY STRATEGY
 def evolutionary_strategy(func, dim, bounds, mu, lam, sigma, gens):
     pop = [[random.uniform(*bounds) for _ in range(dim)] for _ in range(mu)]
-    sig = [sigma]*mu
-    fits= [func(ind) for ind in pop]
+    sig = [sigma] * mu
+    fits = [func(ind) for ind in pop]
     history = []
     for _ in range(gens):
         offs, off_s, off_f = [], [], []
         for _ in range(lam):
-            i, j = random.sample(range(mu),2)
-            parent = pop[i] if fits[i]<fits[j] else pop[j]
-            s      = sig[i]
-            child  = [min(max(x+random.gauss(0,s), bounds[0]), bounds[1]) for x in parent]
-            tau    = 1/math.sqrt(dim)
-            s_new  = abs(s*math.exp(random.gauss(0,tau)))
-            offs.append(child); off_s.append(s_new); off_f.append(func(child))
+            i, j = random.sample(range(mu), 2)
+            parent = pop[i] if fits[i] < fits[j] else pop[j]
+            s = sig[i]
+            child = [min(max(x + random.gauss(0, s), bounds[0]), bounds[1]) for x in parent]
+            tau = 1 / math.sqrt(dim)
+            s_new = abs(s * math.exp(random.gauss(0, tau)))
+            offs.append(child);
+            off_s.append(s_new);
+            off_f.append(func(child))
         idxs = sorted(range(lam), key=lambda i: off_f[i])[:mu]
-        pop  = [offs[i]  for i in idxs]
-        sig  = [off_s[i] for i in idxs]
+        pop = [offs[i] for i in idxs]
+        sig = [off_s[i] for i in idxs]
         fits = [off_f[i] for i in idxs]
         history.append(min(fits))
     best_i = fits.index(min(fits))
     return pop[best_i], fits[best_i], history
 
+
 def run_es_demo():
-    def sphere(x): return sum(xi*xi for xi in x)
-    def rastr(x): return 10*len(x) + sum(xi*xi - 10*math.cos(2*math.pi*xi) for xi in x)
-    def rosen(x): return sum(100*(x[i+1]-x[i]**2)**2 + (x[i]-1)**2 for i in range(len(x)-1))
-    for name, f in [('Sphere',sphere),('Rastrigin',rastr),('Rosenbrock',rosen)]:
-        sol, val, _ = evolutionary_strategy(f,2,(-5.12,5.12),5,20,1.0,50)
+    def sphere(x): return sum(xi * xi for xi in x)
+
+    def rastr(x): return 10 * len(x) + sum(xi * xi - 10 * math.cos(2 * math.pi * xi) for xi in x)
+
+    def rosen(x): return sum(100 * (x[i + 1] - x[i] ** 2) ** 2 + (x[i] - 1) ** 2 for i in range(len(x) - 1))
+
+    for name, f in [('Sphere', sphere), ('Rastrigin', rastr), ('Rosenbrock', rosen)]:
+        sol, val, _ = evolutionary_strategy(f, 2, (-5.12, 5.12), 5, 20, 1.0, 50)
         print(f"ES {name}: sol={sol}, val={val:.4f}")
+
 
 # 12. PORÓWNANIE HC vs SA
 def compare_methods(items, capacity, runs=5, iters=200):
@@ -417,34 +455,34 @@ def compare_methods(items, capacity, runs=5, iters=200):
     for _ in range(runs):
         # HC det
         _, best = hill_climbing_det(items, capacity, iters)
-        hist    = [best]
-        cur     = random_solution(items, capacity)
-        best    = objective(cur, items, capacity)
+        hist = [best]
+        cur = random_solution(items, capacity)
+        best = objective(cur, items, capacity)
         for _ in range(iters):
             nbrs = get_neighbors(cur, items, capacity)
             objs = [objective(n, items, capacity) for n in nbrs] or [best]
-            m    = min(objs)
+            m = min(objs)
             if m < best:
                 cur, best = nbrs[objs.index(m)], m
             hist.append(best)
         hc_hist.append(hist)
         # SA
-        cur  = random_solution(items, capacity)
+        cur = random_solution(items, capacity)
         best = objective(cur, items, capacity)
         hist2 = [best]
-        T     = 10
+        T = 10
         for _ in range(iters):
             nbrs = get_neighbors(cur, items, capacity)
             cand = random.choice(nbrs) if nbrs else cur
-            co   = objective(cand, items, capacity)
-            if co < best or random.random() < math.exp((best - co)/T):
+            co = objective(cand, items, capacity)
+            if co < best or random.random() < math.exp((best - co) / T):
                 cur, best = cand, co
             hist2.append(best)
             T *= 0.95
         sa_hist.append(hist2)
 
-    avg_hc = [sum(col)/runs for col in zip(*[h + [h[-1]]*(iters+1-len(h)) for h in hc_hist])]
-    avg_sa = [sum(col)/runs for col in zip(*[h + [h[-1]]*(iters+1-len(h)) for h in sa_hist])]
+    avg_hc = [sum(col) / runs for col in zip(*[h + [h[-1]] * (iters + 1 - len(h)) for h in hc_hist])]
+    avg_sa = [sum(col) / runs for col in zip(*[h + [h[-1]] * (iters + 1 - len(h)) for h in sa_hist])]
 
     print("\nIter | HC_det | SA")
     print("-------------------")
@@ -461,55 +499,56 @@ def compare_methods(items, capacity, runs=5, iters=200):
     plt.tight_layout()
     plt.show()
 
+
 # 13. CLI
 def parse_args():
-    p   = argparse.ArgumentParser(description="Bin Packing CLI")
-    p.add_argument("-i","--items",    type=int, nargs="+", default=None,
+    p = argparse.ArgumentParser(description="Bin Packing CLI")
+    p.add_argument("-i", "--items", type=int, nargs="+", default=None,
                    help="list of item weights (default static)")
-    p.add_argument("-c","--capacity", type=int, default=DEFAULT_CAPACITY,
+    p.add_argument("-c", "--capacity", type=int, default=DEFAULT_CAPACITY,
                    help="capacity of each bin")
     sub = p.add_subparsers(dest="alg", required=True)
 
-    full     = sub.add_parser("full",      help="full enumeration")
+    full = sub.add_parser("full", help="full enumeration")
     full.add_argument("--max-n", type=int, default=8,
                       help="limit for full enumeration (n<=max_n)")
 
-    hd       = sub.add_parser("hill_det",  help="hill climbing deterministic")
-    hd.add_argument("-t","--iters", type=int, default=1000,
+    hd = sub.add_parser("hill_det", help="hill climbing deterministic")
+    hd.add_argument("-t", "--iters", type=int, default=1000,
                     help="max iterations")
 
-    hr       = sub.add_parser("hill_rand", help="hill climbing random")
-    hr.add_argument("-t","--iters", type=int, default=1000,
+    hr = sub.add_parser("hill_rand", help="hill climbing random")
+    hr.add_argument("-t", "--iters", type=int, default=1000,
                     help="max iterations")
 
-    ts       = sub.add_parser("tabu",      help="tabu search")
+    ts = sub.add_parser("tabu", help="tabu search")
     ts.add_argument("--tabu-size", type=int, default=10,
                     help="tabu list size")
-    ts.add_argument("-t","--iters", type=int, default=1000,
+    ts.add_argument("-t", "--iters", type=int, default=1000,
                     help="max iterations")
     ts.add_argument("--allow-return", action="store_true",
                     help="allow return to last valid when stuck")
 
-    sa       = sub.add_parser("sa",        help="simulated annealing")
-    sa.add_argument("-t","--iters", type=int, default=1000,
+    sa = sub.add_parser("sa", help="simulated annealing")
+    sa.add_argument("-t", "--iters", type=int, default=1000,
                     help="max iterations")
-    sa.add_argument("--T0",         type=float, default=10.0,
+    sa.add_argument("--T0", type=float, default=10.0,
                     help="initial temperature")
-    sa.add_argument("--alpha",      type=float, default=0.95,
+    sa.add_argument("--alpha", type=float, default=0.95,
                     help="cooling rate")
-    sa.add_argument("--stop-T",     type=float, default=0.1,
+    sa.add_argument("--stop-T", type=float, default=0.1,
                     help="stop temperature")
-    sa.add_argument("--neighbor-dist", choices=["uniform","normal"], default="uniform",
+    sa.add_argument("--neighbor-dist", choices=["uniform", "normal"], default="uniform",
                     help="neighbor selection distribution")
 
-    ga       = sub.add_parser("ga",        help="genetic algorithm")
-    ga.add_argument("--pop",      type=int, default=50,   help="population size")
-    ga.add_argument("--gens",     type=int, default=100,  help="generations")
-    ga.add_argument("--crossover",choices=["one","uniform"],default="one",
+    ga = sub.add_parser("ga", help="genetic algorithm")
+    ga.add_argument("--pop", type=int, default=50, help="population size")
+    ga.add_argument("--gens", type=int, default=100, help="generations")
+    ga.add_argument("--crossover", choices=["one", "uniform"], default="one",
                     help="crossover method")
-    ga.add_argument("--mutation", choices=["swap","reassign"],default="swap",
+    ga.add_argument("--mutation", choices=["swap", "reassign"], default="swap",
                     help="mutation method")
-    ga.add_argument("--termination",choices=["gen","noimprove"],default="gen",
+    ga.add_argument("--termination", choices=["gen", "noimprove"], default="gen",
                     help="termination condition")
     ga.add_argument("--no_improve", type=int, default=20,
                     help="no-improve limit")
@@ -518,20 +557,21 @@ def parse_args():
 
     gp = sub.add_parser("gp", help="genetic programming demo")
     gp.add_argument("--gens", type=int, default=30, help="generations")
-    gp.add_argument("--pop",  type=int, default=20, help="population size")
+    gp.add_argument("--pop", type=int, default=20, help="population size")
 
-    sub.add_parser("es",      help="evolutionary strategy demo")
+    sub.add_parser("es", help="evolutionary strategy demo")
 
     cmp = sub.add_parser("compare", help="compare HC det vs SA")
     cmp.add_argument("--runs", type=int, default=5, help="repetitions")
-    cmp.add_argument("-t","--iters", type=int, default=200, help="iterations")
+    cmp.add_argument("-t", "--iters", type=int, default=200, help="iterations")
 
     return p.parse_args()
 
+
 def main():
-    args  = parse_args()
+    args = parse_args()
     items = args.items if args.items else STATIC_ITEMS
-    cap   = args.capacity
+    cap = args.capacity
 
     def show(sol, cnt):
         bins = [[items[i] for i in b] for b in sol]
@@ -586,6 +626,7 @@ def main():
 
     else:
         print("Nieznany alg")
+
 
 if __name__ == "__main__":
     main()
