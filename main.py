@@ -45,33 +45,43 @@ DEFAULT_CAPACITY = 10
 
 # 1. FUNKCJA CELU
 def objective(sol, items, capacity):
-    used = 0
+    """ liczba użytych koszy + kara za przepełnienie (proporcjonalna) """
+    used, overflow = 0, 0
     for b in sol:
-        if not b:
+        if not b:                 # pomijamy puste
             continue
         total = sum(items[i] for i in b)
-        if total > capacity:
-            return len(items) + 1
+        if total > capacity:      # zbierz nadmiar
+            overflow += total - capacity
         used += 1
-    return used
+    return used + overflow        # im mniej, tym lepiej
 
 
 # 2. LOSOWE ROZWIĄZANIE (First‐Fit)
-def random_solution(items, capacity):
-    idx = list(range(len(items)))
-    random.shuffle(idx)
-    bins = []
-    for i in idx:
-        placed = False
-        for b in bins:
-            if sum(items[j] for j in b) + items[i] <= capacity:
-                b.append(i)
-                placed = True
-                break
-        if not placed:
-            bins.append([i])
-    return bins
+#def random_solution(items, capacity):
+#    idx = list(range(len(items)))
+#    random.shuffle(idx)
+#    bins = []
+#    for i in idx:
+#        for b in bins:
+#            if sum(items[j] for j in b) + items[i] <= capacity:
+#                b.append(i)
+#                break
+#        else:
+#            bins.append([i])
+#    return bins
 
+#def random_solution(items, capacity=None):          # capacity ignorowane
+#    idx = list(range(len(items)))
+#    random.shuffle(idx)
+#    return [[i] for i in idx]                       # 1 przedmiot → 1 kosz
+def random_solution(items, capacity):
+    n = len(items)
+    assign = [random.randint(0, n - 1) for _ in range(n)]
+    bins_dict = {}
+    for i, b in enumerate(assign):
+        bins_dict.setdefault(b, []).append(i)
+    return [bins_dict[k] for k in sorted(bins_dict)]
 
 # 3. SĄSIEDZTWO: przeniesienie jednego przedmiotu
 def get_neighbors(sol, items, capacity):
@@ -82,19 +92,16 @@ def get_neighbors(sol, items, capacity):
             for b in range(len(sol)):
                 if b == a:
                     continue
-                if sum(items[j] for j in sol[b]) + items[i] <= capacity:
-                    new = copy.deepcopy(sol)
-                    new[a].remove(i)
-                    new[b].append(i)
-                    if not new[a]:
-                        new.pop(a)
-                    neigh.append(new)
+                new = copy.deepcopy(sol)
+                new[a].remove(i)
+                new[b].append(i)
+                new = [b for b in new if b]  # compact at end
+                neigh.append(new)
             # do nowego binu
             if items[i] <= capacity:
                 new = copy.deepcopy(sol)
                 new[a].remove(i)
-                if not new[a]:
-                    new.pop(a)
+                new = [bin for bin in new if bin]
                 new.append([i])
                 neigh.append(new)
     return neigh
@@ -130,12 +137,18 @@ def hill_climbing_det(items, capacity, max_iters=1000):
     cur = random_solution(items, capacity)
     cur_obj = objective(cur, items, capacity)
     best, best_obj = cur, cur_obj
+    history = [best_obj]
+
     for _ in range(max_iters):
         nbrs = get_neighbors(cur, items, capacity)
+        print("hilldet",len(nbrs))
         if not nbrs:
             break
+
         objs = [objective(n, items, capacity) for n in nbrs]
         m = min(objs)
+        history.append(m)
+
         if m < cur_obj:
             i = objs.index(m)
             cur, cur_obj = nbrs[i], m
@@ -143,7 +156,9 @@ def hill_climbing_det(items, capacity, max_iters=1000):
                 best, best_obj = cur, m
         else:
             break
-    return best, best_obj
+    history += [history[-1]] * (max_iters - len(history))
+
+    return best, best_obj,history
 
 
 # 6. HILL‐CLIMBING losowe
@@ -151,17 +166,24 @@ def hill_climbing_rand(items, capacity, max_iters=1000):
     cur = random_solution(items, capacity)
     cur_obj = objective(cur, items, capacity)
     best, best_obj = cur, cur_obj
+    history = [best_obj]
+
     for _ in range(max_iters):
         nbrs = get_neighbors(cur, items, capacity)
+        print("hillrand",len(nbrs))
+
         if not nbrs:
             break
         cand = random.choice(nbrs)
         co = objective(cand, items, capacity)
+        history.append(co)
+
         if co < cur_obj:
             cur, cur_obj = cand, co
             if co < best_obj:
                 best, best_obj = cand, co
-    return best, best_obj
+
+    return best, best_obj,history
 
 
 # 7. TABU SEARCH
@@ -180,9 +202,12 @@ def tabu_search(items, capacity,
     tabu = deque([sol_key(cur)], maxlen=tabu_size)
     tabu_set = set(tabu)
     last_valid = cur
+    history = [cur_obj]
 
     for _ in range(max_iters):
         nbrs = get_neighbors(cur, items, capacity)
+        print("tabu",len(nbrs))
+
         next_sol = None
         for n in nbrs:
             k = sol_key(n)
@@ -198,6 +223,8 @@ def tabu_search(items, capacity,
                 break
         cur = next_sol
         cur_obj = objective(cur, items, capacity)
+        history.append(cur_obj)
+
         if cur_obj < best_obj:
             best, best_obj = cur, cur_obj
         k = sol_key(cur)
@@ -205,7 +232,7 @@ def tabu_search(items, capacity,
         tabu_set.add(k)
         last_valid = cur
 
-    return best, best_obj
+    return best, best_obj,history
 
 
 # 8. SIMULATED ANNEALING
@@ -216,8 +243,12 @@ def simulated_annealing(items, capacity,
     cur_obj = objective(cur, items, capacity)
     best, best_obj = cur, cur_obj
     T, it = T0, 0
+    history = [best_obj]
+
     while T > stop_T and it < max_iters:
         nbrs = get_neighbors(cur, items, capacity)
+        print("sa",len(nbrs))
+
         if not nbrs:
             break
         if neighbor_dist == 'normal':
@@ -227,84 +258,96 @@ def simulated_annealing(items, capacity,
         else:
             cand = random.choice(nbrs)
         co = objective(cand, items, capacity)
+        history.append(co)
+
         if co < cur_obj or random.random() < math.exp((cur_obj - co) / T):
             cur, cur_obj = cand, co
             if co < best_obj:
                 best, best_obj = cand, co
         T *= alpha
         it += 1
-    return best, best_obj
+
+    history += [history[-1]] * (max_iters - len(history))
+    return best, best_obj,history
 
 
 # 9. GENETIC ALGORITHM
 def encode(sol, n):
-    chrom = [0] * n
-    for bi, b in enumerate(sol):
-        for i in b:
-            chrom[i] = bi
+    chrom = [0] * n #[0,3,4,0,2,4,1]
+    for bi, b in enumerate(sol): # przechodzimy przez biny i ich numery
+        for i in b: # przechodzimy przez itemy w danym binie
+            chrom[i] = bi # na miejscu danego itema w chromosomie przypisujemy jego numer bina
     return chrom
 
+#def decode(chrom, items, capacity): #[0,3,4,0,2,4,1]
+#    paired = list(enumerate(chrom)) # [(0,3),(1,5),(2,3),(3,2),(4,1),]
+#    paired.sort(key=lambda x: x[1]) # sortuje po binach
+#    bins = []
+#    for i, _ in paired:
+#        placed = False
+#        for b in bins:
+#            if sum(items[j] for j in b) + items[i] <= capacity:
+#                b.append(i)
+#                placed = True
+#                break
+#        if not placed:
+#            bins.append([i])
+#    return bins
 
-def decode(chrom, items, capacity):
-    paired = list(enumerate(chrom))
-    paired.sort(key=lambda x: x[1])
-    bins = []
-    for i, _ in paired:
-        placed = False
-        for b in bins:
-            if sum(items[j] for j in b) + items[i] <= capacity:
-                b.append(i)
-                placed = True
-                break
-        if not placed:
-            bins.append([i])
-    return bins
-
+def decode(chrom, items=None, capacity=None):
+    bins_dict = {}
+    for i, bin_id in enumerate(chrom):
+        if bin_id not in bins_dict:
+            bins_dict[bin_id] = []
+        bins_dict[bin_id].append(i)
+    return [bins_dict[k] for k in sorted(bins_dict)]
 
 def fitness(chrom, items, capacity):
     return objective(decode(chrom, items, capacity), items, capacity)
 
 
-def select_parents(pop, fits):
-    def tourney():
-        i, j = random.sample(range(len(pop)), 2)
-        return pop[i] if fits[i] < fits[j] else pop[j]
+def tournament_selection(pop, fits, k=2):
+    best_index = random.choice(range(len(pop)))
+    for _ in range(k):
+        challenger_index = random.choice(range(len(pop)))
+        if fits[challenger_index] < fits[best_index]:
+            best_index = challenger_index
+    return pop[best_index]
 
-    return tourney(), tourney()
+def select_parents(pop, fits):
+    return tournament_selection(pop, fits), tournament_selection(pop, fits)
 
 
 def crossover_one(ch1, ch2):
     p = random.randint(1, len(ch1) - 1)
     return ch1[:p] + ch2[p:]
-
-
 def crossover_uniform(ch1, ch2):
     return [ch1[i] if random.random() < 0.5 else ch2[i] for i in range(len(ch1))]
-
 
 def mutate_swap(ch):
     i, j = random.sample(range(len(ch)), 2)
     ch[i], ch[j] = ch[j], ch[i]
-
 
 def mutate_reassign(ch, max_bins):
     i = random.randrange(len(ch))
     ch[i] = random.randrange(max_bins)
 
 
-def genetic_algorithm(items, capacity,
-                      pop_size=50, gens=100,
+def genetic_algorithm(items, capacity,pop_size=50, gens=100,
                       crossover_method='one', mutation_method='swap',
                       termination='gen', no_improve_limit=20,
                       elite=False):
     n = len(items)
     pop = [encode(random_solution(items, capacity), n) for _ in range(pop_size)]
     fits = [fitness(c, items, capacity) for c in pop]
-    best_idx, best_val = min(range(pop_size), key=lambda i: fits[i]), min(fits)
+
+    best_idx, best_val = min(enumerate(fits), key=lambda i: i[1])
+
     best_ch = pop[best_idx].copy()
     no_imp, gen = 0, 0
+    history = [best_val]
 
-    while True:
+    while True: # kończy się gdy no impr limit ( 20 )  limit ilosć iteracji
         gen += 1
         new = [best_ch.copy()] if elite else []
         while len(new) < pop_size:
@@ -315,99 +358,23 @@ def genetic_algorithm(items, capacity,
             if mutation_method == 'reassign' and random.random() < 0.1:
                 mutate_reassign(ch, pop_size)
             new.append(ch)
+
         pop = new
         fits = [fitness(c, items, capacity) for c in pop]
-        idx, val = min(range(pop_size), key=lambda i: fits[i]), min(fits)
+
+        idx, val = min(enumerate(fits), key=lambda i: i[1])
+
         if val < best_val:
             best_val, best_ch, no_imp = val, pop[idx].copy(), 0
         else:
             no_imp += 1
+
         if (termination == 'gen' and gen >= gens) or (termination == 'noimprove' and no_imp >= no_improve_limit):
             break
+        history.append(val)
 
-    return decode(best_ch, items, capacity), best_val
-
-
-# 10. GP DEMO
-class GPNode:
-    def __init__(self, val, left=None, right=None):
-        self.val, self.left, self.right = val, left, right
-
-    def eval(self, x):
-        if not self.left:
-            return x if self.val == 'x' else float(self.val)
-        a, b = self.left.eval(x), self.right.eval(x)
-        return {'+': a + b, '-': a - b, '*': a * b, '/': a / b if abs(b) > 1e-6 else 1}[self.val]
-
-    def clone(self):
-        return GPNode(self.val,
-                      self.left.clone() if self.left else None,
-                      self.right.clone() if self.right else None)
-
-    def collect(self):
-        nodes = [self]
-        if self.left:  nodes += self.left.collect()
-        if self.right: nodes += self.right.collect()
-        return nodes
-
-    def __str__(self):
-        if not self.left: return str(self.val)
-        return f"({self.val} {self.left} {self.right})"
-
-
-def gen_gp_tree(depth, funcs, terms):
-    if depth == 0 or (depth > 1 and random.random() < 0.3):
-        return GPNode(random.choice(terms))
-    f = random.choice(funcs)
-    return GPNode(f,
-                  gen_gp_tree(depth - 1, funcs, terms),
-                  gen_gp_tree(depth - 1, funcs, terms))
-
-
-def gp_crossover(p1, p2):
-    c1, c2 = p1.clone(), p2.clone()
-    n1, n2 = random.choice(c1.collect()), random.choice(c2.collect())
-    n1.val, n1.left, n1.right, n2.val, n2.left, n2.right = \
-        n2.val, n2.left, n2.right, n1.val, n1.left, n1.right
-    return c1
-
-
-def gp_mutation(tree, funcs, terms, depth):
-    m = tree.clone()
-    target = random.choice(m.collect())
-    new = gen_gp_tree(depth, funcs, terms)
-    target.val, target.left, target.right = new.val, new.left, new.right
-    return m
-
-
-def gp_demo(gens=30, pop_size=20):
-    funcs, terms = ['+', '-', '*', '/'], ['x', '1', '2', '3', '5']
-    pop = [gen_gp_tree(3, funcs, terms) for _ in range(pop_size)]
-    xs = [i / 10 for i in range(-10, 11)]
-
-    def fit(t):
-        return sum((t.eval(x) - math.sin(x)) ** 2 for x in xs)
-
-    fits = [fit(t) for t in pop]
-    best, be = pop[fits.index(min(fits))], min(fits)
-    for _ in range(gens):
-        new = [best.clone()]
-        while len(new) < pop_size:
-            if random.random() < 0.8:
-                i, j = random.sample(range(pop_size), 2)
-                child = gp_crossover(pop[i], pop[j])
-            else:
-                child = pop[random.randrange(pop_size)].clone()
-            if random.random() < 0.1:
-                child = gp_mutation(child, funcs, terms, 3)
-            new.append(child)
-        pop = new
-        fits = [fit(t) for t in pop]
-        ce = min(fits)
-        if ce < be:
-            be, best = ce, pop[fits.index(ce)]
-    print("GP best expr:", best)
-    print("Error sin(x):", be)
+    history += [history[-1]] * (gens - len(history))
+    return decode(best_ch, items, capacity), best_val,history
 
 
 # 11. EVOLUTIONARY STRATEGY
@@ -458,6 +425,7 @@ def compare_methods(items, capacity, runs=5, iters=200):
         hist = [best]
         cur = random_solution(items, capacity)
         best = objective(cur, items, capacity)
+
         for _ in range(iters):
             nbrs = get_neighbors(cur, items, capacity)
             objs = [objective(n, items, capacity) for n in nbrs] or [best]
@@ -471,8 +439,10 @@ def compare_methods(items, capacity, runs=5, iters=200):
         best = objective(cur, items, capacity)
         hist2 = [best]
         T = 10
+
         for _ in range(iters):
             nbrs = get_neighbors(cur, items, capacity)
+
             cand = random.choice(nbrs) if nbrs else cur
             co = objective(cand, items, capacity)
             if co < best or random.random() < math.exp((best - co) / T):
@@ -499,6 +469,89 @@ def compare_methods(items, capacity, runs=5, iters=200):
     plt.tight_layout()
     plt.show()
 
+# 12. PORÓWNANIE – WSZYSTKIE ALGORYTMY
+def compare_methods_2(seed=42, runs=5, iters=200):
+    """
+    Porównuje HC_det, HC_rand, Tabu, SA, GA.
+    Tworzy jedną figurę zawierającą:
+    - wykres słupkowy średnich wyników
+    - time series każdego algorytmu w każdym runie
+    """
+    import matplotlib.pyplot as plt
+    import matplotlib.gridspec as gridspec
+    import random
+
+    def gen_instance(rng):
+        n = rng.randint(12, 24)
+        items = [rng.randint(1, 10) for _ in range(n)]
+
+        low = max(items)  # musi zmieścić największy
+        high = int(sum(items) / n * 1.8)  # „luźny” kosz
+
+        if high < low:  # zabezpieczenie
+            high = low  # range = [low, low]
+
+        capacity = rng.randint(low, high)
+        return items, capacity
+
+    random.seed(seed)
+    rng = random.Random(seed)
+
+    algs = {
+        "HC_det": lambda i, c: hill_climbing_det(i, c, max_iters=iters)[2],
+        "HC_rand": lambda i, c: hill_climbing_rand(i, c, max_iters=iters)[2],
+        "Tabu": lambda i, c: tabu_search(i, c, tabu_size=10, max_iters=iters)[2],
+        "SA": lambda i, c: simulated_annealing(i, c, max_iters=iters)[2],
+        "GA": lambda i, c: genetic_algorithm(i, c, pop_size=50, gens=iters)[2],
+    }
+
+    final_scores = {name: [] for name in algs}
+    histories_per_run = []
+
+    w = 8  # szerokość (cale)
+    h = 2.6 * (runs + 1)  # wysokość: 1,6 cal/wykres
+    fig = plt.figure(figsize=(w, h), layout="constrained")
+    spec = gridspec.GridSpec(nrows=runs + 1, ncols=1, figure=fig)
+
+    # Run-y i ich przebiegi
+    for r in range(runs):
+        items, capacity = gen_instance(rng)
+        print(f"Run {r + 1}: capacity={capacity}, items={items}")
+
+        ax_ts = fig.add_subplot(spec[r + 1, 0])
+        ax_ts.set_title(f"Run {r + 1} – Time Series (#bins per iter)")
+
+        for name, solve in algs.items():
+            print(name)
+
+            hist = solve(items, capacity)
+            print(hist)
+            if len(hist) < iters:
+                hist += [hist[-1]] * (iters - len(hist))
+            final_scores[name].append(hist[-1])
+            ax_ts.plot(hist, label=name)
+
+        ax_ts.set_ylabel("Liczba koszy")
+        ax_ts.set_xlabel("Iteracja")
+        ax_ts.legend(fontsize="x-small", loc="upper right")
+
+    # Średnie końcowe wyniki
+    avgs = {name: sum(vals) / len(vals) for name, vals in final_scores.items()}
+
+    print(f"\nŚrednia liczba koszy (seed={seed}, {runs} instancji):")
+    print("-------------------------------------")
+    for name, val in avgs.items():
+        print(f"{name:8s}: {val:6.2f}")
+    print()
+
+    # Wykres słupkowy u góry
+    ax_bar = fig.add_subplot(spec[0, 0])
+    ax_bar.bar(avgs.keys(), avgs.values())
+    ax_bar.set_ylabel("Średnia liczba koszy")
+    ax_bar.set_title(f"Średnie wyniki końcowe ({runs} instancji)")
+
+    plt.tight_layout()
+    plt.show()
 
 # 13. CLI
 def parse_args():
@@ -552,6 +605,11 @@ def parse_args():
     cmp.add_argument("--runs", type=int, default=5)
     cmp.add_argument("-t","--iters", type=int, default=200)
 
+    cmp2 = add("compare2", help="compare all algorithms on random problems")
+    cmp2.add_argument("--runs", type=int, default=5)
+    cmp2.add_argument("-t", "--iters", type=int, default=200)
+    cmp2.add_argument("--seed", type=int, default=42)
+
     return p.parse_args()
 
 def main():
@@ -593,17 +651,15 @@ def main():
 
     elif args.alg == "ga":
         sol, cnt = genetic_algorithm(items, cap,
-                                     pop_size=args.pop,
-                                     gens=args.gens,
-                                     crossover_method=args.crossover,
-                                     mutation_method=args.mutation,
-                                     termination=args.termination,
-                                     no_improve_limit=args.no_improve,
-                                     elite=args.elite)
-        show(sol, cnt)
+                   pop_size=args.pop,
+                   gens=args.gens,
+                   crossover_method=args.crossover,
+                   mutation_method=args.mutation,
+                   termination=args.termination,
+                   no_improve_limit=args.no_improve,
+                   elite=args.elite)
 
-    elif args.alg == "gp":
-        gp_demo(args.gens, args.pop)
+        show(sol, cnt)
 
     elif args.alg == "es":
         run_es_demo()
@@ -611,8 +667,12 @@ def main():
     elif args.alg == "compare":
         compare_methods(items, cap, runs=args.runs, iters=args.iters)
 
+    elif args.alg == "compare2":
+        compare_methods_2(seed=args.seed, runs=args.runs, iters=args.iters)
+
     else:
         print("Nieznany alg")
 
 if __name__=="__main__":
     main()
+
