@@ -77,37 +77,41 @@ def objective(sol, items, capacity):
 #    return [[i] for i in idx]                       # 1 przedmiot → 1 kosz
 def random_solution(items, capacity):
     n = len(items)
-    assign = [random.randint(0, n - 1) for _ in range(n)]
+    assign = [random.randint(0, n - 1) for _ in range(n)] # generujemy losowe rozkład
     bins_dict = {}
     for i, b in enumerate(assign):
-        bins_dict.setdefault(b, []).append(i)
+        if b not in bins_dict:
+            bins_dict[b] = []
+        bins_dict[b].append(i)
     return [bins_dict[k] for k in sorted(bins_dict)]
 
-# 3. SĄSIEDZTWO: przeniesienie jednego przedmiotu
-def get_neighbors(sol, items, capacity):
-    neigh = []
-    for a in range(len(sol)):
-        for i in sol[a]:
-            # do istniejących binów
-            for b in range(len(sol)):
-                if b == a:
+# 3. SĄSIEDZTWO: przeniesienie jednego przedmiotu 7
+def get_neighbors(sol, items, capacity=None):
+    neighbors = []
+
+    for bin_idx in range(len(sol)):
+
+        for item in sol[bin_idx]:
+            # Move to existing bins
+            for bin_dx_double in range(len(sol)):
+                if bin_dx_double == bin_idx:
                     continue
-                new = copy.deepcopy(sol)
-                new[a].remove(i)
-                new[b].append(i)
-                new = [b for b in new if b]  # compact at end
-                neigh.append(new)
-            # do nowego binu
-            if items[i] <= capacity:
-                new = copy.deepcopy(sol)
-                new[a].remove(i)
-                new = [bin for bin in new if bin]
-                new.append([i])
-                neigh.append(new)
-    return neigh
+                new = [bin.copy() for bin in sol]
+                new[bin_idx].remove(item)
+                new[bin_dx_double].append(item)
+                new = [b for b in new if b]
+                neighbors.append(new)
+
+            new = [bin.copy() for bin in sol]
+            new[bin_idx].remove(item)
+            new = [b for b in new if b]
+            new.append([item])
+            neighbors.append(new)
+
+    return neighbors
 
 
-# 4. PEŁNY PRZEGLĄD
+# 4. PEŁNY PRZEGLĄD 6
 def full_enumeration(items, capacity, max_n=8):
     if len(items) > max_n:
         return None, None
@@ -118,13 +122,14 @@ def full_enumeration(items, capacity, max_n=8):
         bins = {}
         valid = True
         for i, b in enumerate(assign):
-            bins.setdefault(b, []).append(i)
+            bins.setdefault(b, []).append(i) # dodaje i albo tworzy pustą liste z i
         for b in bins.values():
             if sum(items[i] for i in b) > capacity:
                 valid = False
                 break
         if not valid:
             continue
+
         used = len(bins)
         if used < best_count:
             best_count = used
@@ -132,7 +137,7 @@ def full_enumeration(items, capacity, max_n=8):
     return best_sol, best_count
 
 
-# 5. HILL‐CLIMBING deterministyczne
+# 5. HILL‐CLIMBING deterministyczne 7
 def hill_climbing_det(items, capacity, max_iters=1000):
     cur = random_solution(items, capacity)
     cur_obj = objective(cur, items, capacity)
@@ -161,7 +166,7 @@ def hill_climbing_det(items, capacity, max_iters=1000):
     return best, best_obj,history
 
 
-# 6. HILL‐CLIMBING losowe
+# 6. HILL‐CLIMBING losowe 7
 def hill_climbing_rand(items, capacity, max_iters=1000):
     cur = random_solution(items, capacity)
     cur_obj = objective(cur, items, capacity)
@@ -186,7 +191,7 @@ def hill_climbing_rand(items, capacity, max_iters=1000):
     return best, best_obj,history
 
 
-# 7. TABU SEARCH
+# 7. TABU SEARCH 1
 def tabu_search(items, capacity,
                 tabu_size=10,
                 max_iters=1000,
@@ -238,7 +243,7 @@ def tabu_search(items, capacity,
 # 8. SIMULATED ANNEALING
 def simulated_annealing(items, capacity,
                         T0=10.0, alpha=0.95, stop_T=0.1,
-                        max_iters=1000, neighbor_dist='uniform'):
+                        max_iters=1000):
     cur = random_solution(items, capacity)
     cur_obj = objective(cur, items, capacity)
     best, best_obj = cur, cur_obj
@@ -251,12 +256,7 @@ def simulated_annealing(items, capacity,
 
         if not nbrs:
             break
-        if neighbor_dist == 'normal':
-            sigma = max(1, len(nbrs) // 3)
-            idx = int(abs(random.gauss(0, sigma))) % len(nbrs)
-            cand = nbrs[idx]
-        else:
-            cand = random.choice(nbrs)
+        cand = random.choice(nbrs)
         co = objective(cand, items, capacity)
         history.append(co)
 
@@ -278,21 +278,6 @@ def encode(sol, n):
         for i in b: # przechodzimy przez itemy w danym binie
             chrom[i] = bi # na miejscu danego itema w chromosomie przypisujemy jego numer bina
     return chrom
-
-#def decode(chrom, items, capacity): #[0,3,4,0,2,4,1]
-#    paired = list(enumerate(chrom)) # [(0,3),(1,5),(2,3),(3,2),(4,1),]
-#    paired.sort(key=lambda x: x[1]) # sortuje po binach
-#    bins = []
-#    for i, _ in paired:
-#        placed = False
-#        for b in bins:
-#            if sum(items[j] for j in b) + items[i] <= capacity:
-#                b.append(i)
-#                placed = True
-#                break
-#        if not placed:
-#            bins.append([i])
-#    return bins
 
 def decode(chrom, items=None, capacity=None):
     bins_dict = {}
@@ -321,6 +306,7 @@ def select_parents(pop, fits):
 def crossover_one(ch1, ch2):
     p = random.randint(1, len(ch1) - 1)
     return ch1[:p] + ch2[p:]
+
 def crossover_uniform(ch1, ch2):
     return [ch1[i] if random.random() < 0.5 else ch2[i] for i in range(len(ch1))]
 
@@ -353,10 +339,12 @@ def genetic_algorithm(items, capacity,pop_size=50, gens=100,
         while len(new) < pop_size:
             p1, p2 = select_parents(pop, fits)
             ch = crossover_one(p1, p2) if crossover_method == 'one' else crossover_uniform(p1, p2)
-            if mutation_method == 'swap' and random.random() < 0.1:
-                mutate_swap(ch)
-            if mutation_method == 'reassign' and random.random() < 0.1:
-                mutate_reassign(ch, pop_size)
+
+            if random.random() < 0.1:
+                if mutation_method == 'swap':
+                    mutate_swap(ch)
+                else:
+                    mutate_reassign(ch, pop_size)
             new.append(ch)
 
         pop = new
@@ -402,72 +390,6 @@ def evolutionary_strategy(func, dim, bounds, mu, lam, sigma, gens):
         history.append(min(fits))
     best_i = fits.index(min(fits))
     return pop[best_i], fits[best_i], history
-
-
-def run_es_demo():
-    def sphere(x): return sum(xi * xi for xi in x)
-
-    def rastr(x): return 10 * len(x) + sum(xi * xi - 10 * math.cos(2 * math.pi * xi) for xi in x)
-
-    def rosen(x): return sum(100 * (x[i + 1] - x[i] ** 2) ** 2 + (x[i] - 1) ** 2 for i in range(len(x) - 1))
-
-    for name, f in [('Sphere', sphere), ('Rastrigin', rastr), ('Rosenbrock', rosen)]:
-        sol, val, _ = evolutionary_strategy(f, 2, (-5.12, 5.12), 5, 20, 1.0, 50)
-        print(f"ES {name}: sol={sol}, val={val:.4f}")
-
-
-# 12. PORÓWNANIE HC vs SA
-def compare_methods(items, capacity, runs=5, iters=200):
-    hc_hist, sa_hist = [], []
-    for _ in range(runs):
-        # HC det
-        _, best = hill_climbing_det(items, capacity, iters)
-        hist = [best]
-        cur = random_solution(items, capacity)
-        best = objective(cur, items, capacity)
-
-        for _ in range(iters):
-            nbrs = get_neighbors(cur, items, capacity)
-            objs = [objective(n, items, capacity) for n in nbrs] or [best]
-            m = min(objs)
-            if m < best:
-                cur, best = nbrs[objs.index(m)], m
-            hist.append(best)
-        hc_hist.append(hist)
-        # SA
-        cur = random_solution(items, capacity)
-        best = objective(cur, items, capacity)
-        hist2 = [best]
-        T = 10
-
-        for _ in range(iters):
-            nbrs = get_neighbors(cur, items, capacity)
-
-            cand = random.choice(nbrs) if nbrs else cur
-            co = objective(cand, items, capacity)
-            if co < best or random.random() < math.exp((best - co) / T):
-                cur, best = cand, co
-            hist2.append(best)
-            T *= 0.95
-        sa_hist.append(hist2)
-
-    avg_hc = [sum(col) / runs for col in zip(*[h + [h[-1]] * (iters + 1 - len(h)) for h in hc_hist])]
-    avg_sa = [sum(col) / runs for col in zip(*[h + [h[-1]] * (iters + 1 - len(h)) for h in sa_hist])]
-
-    print("\nIter | HC_det | SA")
-    print("-------------------")
-    for i, (h, s) in enumerate(zip(avg_hc, avg_sa)):
-        print(f"{i:4d} | {h:6.2f} | {s:6.2f}")
-    print()
-
-    plt.plot(avg_hc, label='HC det')
-    plt.plot(avg_sa, label='SA')
-    plt.xlabel('Iteracja')
-    plt.ylabel('Średnia liczba koszy')
-    plt.title('Porównanie HC det vs SA')
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
 
 # 12. PORÓWNANIE – WSZYSTKIE ALGORYTMY
 def compare_methods_2(seed=42, runs=5, iters=200):
